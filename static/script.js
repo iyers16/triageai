@@ -167,6 +167,10 @@ document.addEventListener("DOMContentLoaded", () => {
         // lock.classList.add("hidden");
         // dash.classList.remove("hidden");
         document.getElementById("loginBtn").hidden = true; 
+        const lock = document.getElementById("nurseLock");
+        const dash = document.getElementById("nurseDash");
+        lock.classList.add("hidden");
+        dash.classList.remove("hidden");
         fetchQueue();
       }
     });
@@ -175,6 +179,7 @@ document.addEventListener("DOMContentLoaded", () => {
 function setupNurse() {
 //   const unlockBtn = document.getElementById('unlockBtn');
   const loginBtn = document.getElementById("loginBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
   const clearBtn = document.getElementById("clearBtn");
 
     fetch("/session")
@@ -188,6 +193,8 @@ function setupNurse() {
             console.log("loginBtn:", loginBtn);
             document.getElementById('loginStr').style.display = "none"; 
             loginBtn.style.display = "none";
+            if (loginBtn) loginBtn.hidden = true;
+            if (logoutBtn) logoutBtn.hidden = false;
         }
         // if (lock && dash) {
         //   lock.classList.add("hidden");
@@ -201,6 +208,13 @@ function setupNurse() {
   if (loginBtn) {
     loginBtn.addEventListener("click", () => {
       window.location.href = "/login";
+    });
+  }
+
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+      window.location.href = "/logout"; // your Flask logout route
+      // window.location.reload();
     });
   }
 
@@ -247,8 +261,9 @@ async function fetchQueue() {
   try {
     const res = await fetch(`${API}/queue`);
     if (!res.ok) throw new Error("Network error");
-    const patients = await res.json();
-
+    let patients = await res.json();
+    // reverse patients array
+    patients = patients.reverse();
     if (!Array.isArray(patients) || patients.length === 0) {
       list.innerHTML = `<div class="empty">No patients in queue.</div>`;
       if (mCritical) mCritical.textContent = "0";

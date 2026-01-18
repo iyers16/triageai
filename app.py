@@ -28,7 +28,7 @@ if ENV_FILE:
 
 # --- CONFIGURATION ---
 CAM_SOURCES = {
-    1: "http://10.115.10.189:4747/video",  # Camera 1
+    1: "http://10.102.199.32:4747/video",  # Camera 1
     2: "http://10.215.39.34:4747/video"   # Camera 2
 }
 
@@ -62,64 +62,64 @@ def camera_worker(cam_id, url):
     Dedicated thread for a single camera.
     Instantiates its own VisionTriage to avoid threading conflicts.
     """
-    # print(f"[{cam_id}] Connecting to {url}...")
+    print(f"[{cam_id}] Connecting to {url}...")
     
-    # # 1. Instantiate Vision Model (Thread-Local)
-    # vision_system = VisionTriage()
-    # cap = cv2.VideoCapture(url)
+    # 1. Instantiate Vision Model (Thread-Local)
+    vision_system = VisionTriage()
+    cap = cv2.VideoCapture(url)
     
-    # # Reconnection / Loop logic
-    # while True:
-    #     if not cap.isOpened():
-    #         cap.open(url)
-    #         time.sleep(2)
-    #         continue
+    # Reconnection / Loop logic
+    while True:
+        if not cap.isOpened():
+            cap.open(url)
+            time.sleep(2)
+            continue
 
-    #     success, frame = cap.read()
-    #     if not success:
-    #         # If stream drops, keep retrying
-    #         time.sleep(0.1)
-    #         continue
+        success, frame = cap.read()
+        if not success:
+            # If stream drops, keep retrying
+            time.sleep(0.1)
+            continue
 
-    #     # 2. Run Vision Analysis
-    #     try:
-    #         annotated_frame, alert = vision_system.analyze_frame(frame)
-    #     except Exception as e:
-    #         print(f"[{cam_id}] Vision Error: {e}")
-    #         annotated_frame = frame
-    #         alert = None
+        # 2. Run Vision Analysis
+        try:
+            annotated_frame, alert = vision_system.analyze_frame(frame)
+        except Exception as e:
+            print(f"[{cam_id}] Vision Error: {e}")
+            annotated_frame = frame
+            alert = None
 
-    #     # 3. Handle "Code Black" Logic
-    #     if alert:
-    #         active_patients = patient_mgr.get_active()
-    #         last_complaint = active_patients[-1]['complaint'] if active_patients else ""
+        # 3. Handle "Code Black" Logic
+        if alert:
+            active_patients = patient_mgr.get_active()
+            last_complaint = active_patients[-1]['complaint'] if active_patients else ""
             
-    #         # De-duplication: Ensure we don't spam the same alert
-    #         alert_msg = f"CODE BLACK (CAM {cam_id}): {alert}"
+            # De-duplication: Ensure we don't spam the same alert
+            alert_msg = f"CODE BLACK (CAM {cam_id}): {alert}"
             
-    #         if alert_msg not in last_complaint:
-    #             print(f"🚨 CAM {cam_id} DETECTED: {alert}")
+            if alert_msg not in last_complaint:
+                print(f"🚨 CAM {cam_id} DETECTED: {alert}")
                 
-    #             # Convert to base64 for snapshot
-    #             _, buffer = cv2.imencode('.jpg', annotated_frame)
-    #             b64_img = base64.b64encode(buffer).decode('utf-8')
+                # Convert to base64 for snapshot
+                _, buffer = cv2.imencode('.jpg', annotated_frame)
+                b64_img = base64.b64encode(buffer).decode('utf-8')
                 
-    #             patient_mgr.add_patient(
-    #                 name=f"Unknown (Cam {cam_id})",
-    #                 age="N/A",
-    #                 complaint=alert_msg,
-    #                 esi=0, 
-    #                 analysis=f"**VISUAL OVERRIDE:** Camera {cam_id} detected {alert}.",
-    #                 source_docs=[],
-    #                 snapshot=f"data:image/jpeg;base64,{b64_img}"
-    #             )
+                patient_mgr.add_patient(
+                    name=f"Unknown (Cam {cam_id})",
+                    age="N/A",
+                    complaint=alert_msg,
+                    esi=0, 
+                    analysis=f"**VISUAL OVERRIDE:** Camera {cam_id} detected {alert}.",
+                    source_docs=[],
+                    snapshot=f"data:image/jpeg;base64,{b64_img}"
+                )
 
-    #     # 4. Update Global State safely
-    #     with STREAMS[cam_id]['lock']:
-    #         STREAMS[cam_id]['frame'] = annotated_frame.copy()
+        # 4. Update Global State safely
+        with STREAMS[cam_id]['lock']:
+            STREAMS[cam_id]['frame'] = annotated_frame.copy()
             
-    #     time.sleep(0.03) # Cap ~30 FPS per thread
-    return 
+        time.sleep(0.03) # Cap ~30 FPS per thread
+    # return 
 
 # --- START THREADS ---
 # Spin up a thread for each camera source
@@ -213,7 +213,7 @@ def logout():
         + "/v2/logout?"
         + urlencode(
             {
-                "returnTo": url_for("home", _external=True),
+                "returnTo": url_for("index", _external=True),
                 "client_id": env.get("AUTH0_CLIENT_ID"),
             },
             quote_via=quote_plus,
