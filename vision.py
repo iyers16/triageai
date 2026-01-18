@@ -4,6 +4,7 @@ from mediapipe.tasks.python import vision
 import cv2
 import math
 import numpy as np
+import time
 
 class VisionTriage:
     def __init__(self):
@@ -21,6 +22,12 @@ class VisionTriage:
         # Fall detection: track previous nose position for sudden movement
         self.prev_nose_y = None
         self.fall_velocity_threshold = 0.05  # Sudden downward movement threshold
+
+        # Alert lock: hold alert for 10 seconds before allowing new detection
+        self.locked_alert = None
+        self.alert_lock_time = None
+        self.alert_lock_duration = 10  # seconds
+        self.locked_confidence = 0  # confidence score for locked alert
 
         # Define connections for drawing the skeleton (Bone Map)
         self.CONNECTIONS = [
@@ -91,22 +98,73 @@ class VisionTriage:
 
             is_down = nose.y > hip_mid_y  # Head below hips
 
+            # Detect raw alert (before lock logic) with confidence scores
+            raw_alert = None
+            raw_confidence = 0
+
+            # Helper: calculate confidence (how close to threshold, capped at 100%)
+            def calc_confidence(distance, threshold):
+                if distance >= threshold:
+                    return 0
+                # Closer to 0 = higher confidence
+                return min(100, int((1 - distance / threshold) * 100))
+
             # 1. CHOKING (Both hands at neck)
-            if dist_l_neck < (0.6 * shoulder_width) and dist_r_neck < (0.6 * shoulder_width):
-                 alert = "CRITICAL: CHOKING DETECTED"
+            choke_thresh = 0.6 * shoulder_width
+            if dist_l_neck < choke_thresh and dist_r_neck < choke_thresh:
+                 raw_alert = "CRITICAL: CHOKING DETECTED"
+                 # Average confidence of both hands
+                 raw_confidence = (calc_confidence(dist_l_neck, choke_thresh) +
+                                   calc_confidence(dist_r_neck, choke_thresh)) // 2
 
             # 2. CHEST PAIN (Hand on center of chest)
             elif dist_l_chest < (0.35 * shoulder_width) or dist_r_chest < (0.45 * shoulder_width):
-                 alert = "URGENT: CHEST PAIN"
+                 raw_alert = "URGENT: CHEST PAIN"
+                 # Use the closer hand's confidence
+                 conf_l = calc_confidence(dist_l_chest, 0.35 * shoulder_width)
+                 conf_r = calc_confidence(dist_r_chest, 0.45 * shoulder_width)
+                 raw_confidence = max(conf_l, conf_r)
 
             # 3. FALL (Head below hips or sudden downward movement)
             elif is_down or sudden_fall:
-                 alert = "CRITICAL: PATIENT DOWN"
+                 raw_alert = "CRITICAL: PATIENT DOWN"
+                 if sudden_fall:
+                     # Confidence based on fall velocity
+                     raw_confidence = min(100, int((nose_velocity / self.fall_velocity_threshold) * 50))
+                 else:
+                     # Confidence based on how far below hips
+                     drop_amount = nose.y - hip_mid_y
+                     raw_confidence = min(100, int((drop_amount / shoulder_width) * 100) + 50)
 
             # 4. HEADACHE (Hand on/near head)
             elif (dist_l_head < (0.6 * shoulder_width) and l_wrist.y < l_shldr.y) or \
                  (dist_r_head < (0.6 * shoulder_width) and r_wrist.y < r_shldr.y):
-                 alert = "MODERATE: HEADACHE"
+                 raw_alert = "MODERATE: HEADACHE"
+                 head_thresh = 0.6 * shoulder_width
+                 conf_l = calc_confidence(dist_l_head, head_thresh) if l_wrist.y < l_shldr.y else 0
+                 conf_r = calc_confidence(dist_r_head, head_thresh) if r_wrist.y < r_shldr.y else 0
+                 raw_confidence = max(conf_l, conf_r)
+
+            # Alert lock logic: hold alert for 10 seconds
+            current_time = time.time()
+
+            if self.locked_alert is not None:
+                # Check if lock has expired
+                if current_time - self.alert_lock_time >= self.alert_lock_duration:
+                    # Lock expired, allow new detection
+                    self.locked_alert = None
+                    self.alert_lock_time = None
+                    self.locked_confidence = 0
+
+            if self.locked_alert is None and raw_alert is not None:
+                # No current lock, set new one
+                self.locked_alert = raw_alert
+                self.alert_lock_time = current_time
+                self.locked_confidence = raw_confidence
+
+            # Use locked alert (persists for 10s) or None
+            alert = self.locked_alert
+            confidence = self.locked_confidence
 
             # --- DRAWING THE SKELETON ---
             # 1. Draw Bones (Lines)
@@ -129,7 +187,8 @@ class VisionTriage:
             if alert:
                 color = (0, 0, 255) if "CRITICAL" in alert else (0, 165, 255)
                 cv2.rectangle(annotated_frame, (0, 0), (w, 60), color, -1)
-                cv2.putText(annotated_frame, alert, (20, 40), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+                alert_text = f"{alert} ({confidence}%)"
+                cv2.putText(annotated_frame, alert_text, (20, 40),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
 
         return annotated_frame, alert
