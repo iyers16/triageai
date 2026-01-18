@@ -8,10 +8,21 @@
   <link rel="stylesheet" href="/static/style.css">
 
   <script defer src="/static/script.js"></script>
+  
+  <style>
+    /* Inline tweak for dual-camera grid */
+    .cam-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 800px) {
+      .cam-grid { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
 
 <body>
-  <!-- ====================== HERO ====================== -->
   <header class="hero">
     <div class="hero-bg"></div>
 
@@ -31,12 +42,9 @@
     </div>
   </header>
 
-  <!-- ====================== MAIN ====================== -->
   <main class="container">
-    <!-- ====================== KIOSK ====================== -->
     <section id="tab-kiosk" class="tab-page active">
       <section class="grid">
-        <!-- Left: Form -->
         <section class="card">
           <div class="card-head">
             <h2>Patient Check-In</h2>
@@ -112,7 +120,6 @@
           </p>
         </section>
 
-        <!-- Right: Info / Result -->
         <aside class="side">
           <section class="card glass">
             <h3>What happens next?</h3>
@@ -153,9 +160,7 @@
       </section>
     </section>
 
-    <!-- ====================== NURSE ====================== -->
     <section id="tab-nurse" class="tab-page">
-      <!-- Lock screen -->
       <section id="nurseLock" class="card glass lock">
         <div class="card-head">
           <h2>Nurse Dashboard</h2>
@@ -178,10 +183,8 @@
         <p class="fineprint">Demo-only privacy (client-side). Replace with real auth later.</p>
       </section>
 
-      <!-- Dashboard -->
       <section id="nurseDash" class="hidden">
         <section class="grid">
-          <!-- Queue + metrics -->
           <section class="card">
             <div class="card-head">
               <h2>📋 Triage Queue</h2>
@@ -212,13 +215,21 @@
           <aside class="side">
             <section class="card glass">
               <div class="card-head">
-                <h2>📹 Video Feed</h2>
-                <span class="pill blue">Live</span>
+                <h2>📹 Live Surveillance</h2>
+                <span class="pill blue">Active</span>
               </div>
 
-              <div class="videoBox">
-                <img src="/video_feed" alt="Live Feed" class="video-stream">
+              <div class="cam-grid">
+                <div class="videoBox">
+                  <img src="/video_feed/1" alt="Cam 1" class="video-stream">
+                  <div class="camHint">CAM 1</div>
+                </div>
+                <div class="videoBox">
+                  <img src="/video_feed/2" alt="Cam 2" class="video-stream">
+                  <div class="camHint">CAM 2</div>
+                </div>
               </div>
+            </section>
 
             <section class="card" id="selectedCard">
               <div class="card-head">

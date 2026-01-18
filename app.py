@@ -13,62 +13,92 @@ from services import TriageService, PatientManager
 app = Flask(__name__)
 CORS(app)
 
+# --- CONFIGURATION ---
+CAM_SOURCES = {
+    1: "http://10.115.10.189:4747/video",  # Camera 1
+    2: "http://10.215.39.34:4747/video"   # Camera 2
+}
+
 # --- GLOBAL STATE ---
-# Instantiate Logic Classes
-vision_system = VisionTriage()
 patient_mgr = PatientManager()
 triage_service = TriageService()
 
-# Global variables for video streaming thread
-output_frame = None
-lock = threading.Lock()
+# Dictionary to hold state for each camera: { id: { 'frame': None, 'lock': Lock() } }
+STREAMS = {}
+for cam_id in CAM_SOURCES:
+    STREAMS[cam_id] = {
+        'frame': None,
+        'lock': threading.Lock()
+    }
 
-def camera_loop():
-    """Background thread for continuous video analysis."""
-    global output_frame, lock
-    cap = cv2.VideoCapture("http://10.102.199.32:4747/video")
+def camera_worker(cam_id, url):
+    """
+    Dedicated thread for a single camera.
+    Instantiates its own VisionTriage to avoid threading conflicts.
+    """
+    print(f"[{cam_id}] Connecting to {url}...")
     
+    # 1. Instantiate Vision Model (Thread-Local)
+    vision_system = VisionTriage()
+    cap = cv2.VideoCapture(url)
+    
+    # Reconnection / Loop logic
     while True:
+        if not cap.isOpened():
+            cap.open(url)
+            time.sleep(2)
+            continue
+
         success, frame = cap.read()
         if not success:
+            # If stream drops, keep retrying
             time.sleep(0.1)
             continue
 
-        # 1. Run Vision Analysis
-        annotated_frame, alert = vision_system.analyze_frame(frame)
-        
-        # 2. Handle "Code Black" Logic (Server-Side)
+        # 2. Run Vision Analysis
+        try:
+            annotated_frame, alert = vision_system.analyze_frame(frame)
+        except Exception as e:
+            print(f"[{cam_id}] Vision Error: {e}")
+            annotated_frame = frame
+            alert = None
+
+        # 3. Handle "Code Black" Logic
         if alert:
             active_patients = patient_mgr.get_active()
-            # De-duplication: Check last active patient
             last_complaint = active_patients[-1]['complaint'] if active_patients else ""
             
-            if f"CODE BLACK: {alert}" not in last_complaint:
-                print(f"🚨 DETECTED: {alert}")
+            # De-duplication: Ensure we don't spam the same alert
+            alert_msg = f"CODE BLACK (CAM {cam_id}): {alert}"
+            
+            if alert_msg not in last_complaint:
+                print(f"🚨 CAM {cam_id} DETECTED: {alert}")
                 
-                # Convert frame to base64 for storage/display in dashboard
+                # Convert to base64 for snapshot
                 _, buffer = cv2.imencode('.jpg', annotated_frame)
                 b64_img = base64.b64encode(buffer).decode('utf-8')
                 
                 patient_mgr.add_patient(
-                    name="Unknown (Auto-Detected)",
+                    name=f"Unknown (Cam {cam_id})",
                     age="N/A",
-                    complaint=f"CODE BLACK: {alert}",
+                    complaint=alert_msg,
                     esi=0, 
-                    analysis=f"**VISUAL OVERRIDE:** System detected {alert}.",
+                    analysis=f"**VISUAL OVERRIDE:** Camera {cam_id} detected {alert}.",
                     source_docs=[],
                     snapshot=f"data:image/jpeg;base64,{b64_img}"
                 )
 
-        # 3. Update global frame for streaming
-        with lock:
-            output_frame = annotated_frame.copy()
+        # 4. Update Global State safely
+        with STREAMS[cam_id]['lock']:
+            STREAMS[cam_id]['frame'] = annotated_frame.copy()
             
-        time.sleep(0.03) # Cap at ~30 FPS
+        time.sleep(0.03) # Cap ~30 FPS per thread
 
-# Start the Camera Thread
-t = threading.Thread(target=camera_loop, daemon=True)
-t.start()
+# --- START THREADS ---
+# Spin up a thread for each camera source
+for cam_id, url in CAM_SOURCES.items():
+    t = threading.Thread(target=camera_worker, args=(cam_id, url), daemon=True)
+    t.start()
 
 # --- ROUTES ---
 
@@ -77,22 +107,31 @@ def index():
     """Renders the main single-page UI."""
     return render_template('index.html')
 
-@app.route('/video_feed')
-def video_feed():
-    """Streams the video feed to the browser via MJPEG."""
-    def generate():
-        global output_frame, lock
+@app.route('/video_feed/<int:cam_id>')
+def video_feed(cam_id):
+    """Streams the specific camera feed via MJPEG."""
+    if cam_id not in STREAMS:
+        return "Camera not found", 404
+
+    def generate(c_id):
+        stream_data = STREAMS[c_id]
         while True:
-            with lock:
-                if output_frame is None:
+            with stream_data['lock']:
+                if stream_data['frame'] is None:
+                    time.sleep(0.1)
                     continue
-                (flag, encodedImage) = cv2.imencode(".jpg", output_frame)
+                
+                # Encode frame
+                (flag, encodedImage) = cv2.imencode(".jpg", stream_data['frame'])
                 if not flag:
                     continue
+            
+            # Yield MJPEG chunk
             yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + 
                   bytearray(encodedImage) + b'\r\n')
             time.sleep(0.05)
-    return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+    return Response(generate(cam_id), mimetype="multipart/x-mixed-replace; boundary=frame")
 
 # --- API ENDPOINTS ---
 
@@ -121,4 +160,5 @@ def complete_patient(id):
     return jsonify({"success": success})
 
 if __name__ == '__main__':
+    # Threaded=True is important for Flask to handle multiple requests (video streams) at once
     app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)
