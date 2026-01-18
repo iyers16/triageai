@@ -79,7 +79,9 @@ class TriageService:
         2. Start your response EXACTLY with "ESI LEVEL: X" where X is the number.
         3. Provide a brief 2-sentence medical summary for the nurse.
         4. List recommended immediate actions.
-        
+        5. Space out the analysis section for clarity.
+        6. Do not use markdown formatting, txt will do.
+
         ANALYSIS:
         """
         prompt = PromptTemplate(template=template, input_variables=["context", "question"])

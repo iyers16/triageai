@@ -350,7 +350,7 @@ function showSelectedPatient(p) {
 
     <div class="k">Chief complaint</div>
     <div class="vBox">
-      ${p.complaint || "—"}
+      <p>${p.complaint || "—"}</p>
     </div>
 
     <div class="divider"></div>

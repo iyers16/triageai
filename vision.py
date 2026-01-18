@@ -155,7 +155,7 @@ class VisionTriage:
                     self.locked_alert = None
                     self.alert_lock_time = None
                     self.locked_confidence = 0
-
+                    return annotated_frame, None
             if self.locked_alert is None and raw_alert is not None:
                 # No current lock, set new one
                 self.locked_alert = raw_alert
