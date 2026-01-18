@@ -1,19 +1,240 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Flask JS Example</title>
-    <!-- <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"> -->
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
+  <meta charset="UTF-8" />
+  <title>CodeBlue — Emergency Intake</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
+  <script defer src="{{ url_for('static', filename='script.js') }}"></script>
 </head>
+
 <body>
-    <h1>Flask + JS Example</h1>
+  <header class="hero">
+    <div class="hero-bg"></div>
 
-    <input type="text" id="nameInput" placeholder="Enter your name">
-    <button id="sendBtn">Send</button>
+    <div class="hero-content">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">🟦</div>
+        <div>
+          <h1>CodeBlue</h1>
+          <p>AI-powered emergency intake & triage support</p>
+        </div>
+      </div>
 
-    <p id="response"></p>
+      <nav class="tabs" aria-label="Main tabs">
+        <button class="tab active" data-tab="kiosk">Patient Kiosk (Public)</button>
+        <button class="tab" data-tab="nurse">Nurse Dashboard (Private)</button>
+      </nav>
+    </div>
+  </header>
 
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+  <main class="container">
+    <!-- ====================== KIOSK ====================== -->
+    <section id="tab-kiosk" class="tab-page active">
+      <section class="grid">
+        <section class="card">
+          <div class="card-head">
+            <h2>Patient Check-In</h2>
+            <span class="pill blue">Public intake</span>
+          </div>
+
+          <div class="field">
+            <label for="name">Full Name</label>
+            <input id="name" type="text" placeholder="Jane Doe" />
+          </div>
+
+          <div class="two-col">
+            <div class="field">
+              <label for="age">Age</label>
+              <input id="age" type="number" value="30" min="0" max="120" />
+            </div>
+
+            <div class="field">
+              <label for="sex">Sex</label>
+              <select id="sex">
+                <option>Female</option>
+                <option>Male</option>
+                <option>Prefer not to say</option>
+              </select>
+            </div>
+          </div>
+
+          <details class="field">
+            <summary class="summary">Optional vitals (if measured)</summary>
+            <div class="two-col">
+              <div class="field">
+                <label for="hr">Heart rate</label>
+                <input id="hr" type="number" placeholder="bpm" min="0" max="250" />
+              </div>
+              <div class="field">
+                <label for="sbp">Systolic BP</label>
+                <input id="sbp" type="number" placeholder="mmHg" min="0" max="260" />
+              </div>
+            </div>
+            <div class="two-col">
+              <div class="field">
+                <label for="rr">Resp. rate</label>
+                <input id="rr" type="number" placeholder="/min" min="0" max="80" />
+              </div>
+              <div class="field">
+                <label for="temp">Temp</label>
+                <input id="temp" type="number" step="0.1" placeholder="°C" min="30" max="43" />
+              </div>
+            </div>
+          </details>
+
+          <div class="field">
+            <label for="complaint">Symptoms</label>
+            <textarea id="complaint" rows="4"
+              placeholder="Chest pain for 20 minutes, shortness of breath, sweating..."></textarea>
+          </div>
+
+          <button id="submitBtn" class="primary">
+            <span class="btn-icon">🚑</span>
+            <span class="btn-text">Submit for Triage</span>
+            <span class="spinner" aria-hidden="true"></span>
+          </button>
+
+          <p class="fineprint">
+            Decision support only. Final triage is determined by licensed staff.
+          </p>
+        </section>
+
+        <aside class="side">
+          <section class="card glass">
+            <h3>What happens next?</h3>
+            <ul class="bullets">
+              <li>Your intake is structured for triage.</li>
+              <li>Nurse dashboard prioritizes urgent cases first.</li>
+              <li>If symptoms worsen, alert staff immediately.</li>
+            </ul>
+
+            <div class="tip">
+              <span>🟦</span>
+              <div>CodeBlue is designed for calm, fast triage workflow — not panic UI.</div>
+            </div>
+          </section>
+
+          <section id="result" class="card hidden">
+            <div class="result-head">
+              <h3>Triage Result</h3>
+              <div id="esiBadge" class="esi-badge">ESI LEVEL —</div>
+            </div>
+
+            <p id="analysis" class="analysis"></p>
+
+            <div class="actions">
+              <button id="copyBtn" class="ghost">Copy summary</button>
+              <button id="newBtn" class="ghost">New check-in</button>
+              <button id="goNurseBtn" class="ghost">Open nurse view</button>
+            </div>
+          </section>
+
+          <section id="kioskSuccess" class="card hidden">
+            <h3>✅ Check-in complete</h3>
+            <p class="analysis">
+              Please take a seat in the waiting area. A nurse has been notified.
+            </p>
+          </section>
+        </aside>
+      </section>
+    </section>
+
+    <!-- ====================== NURSE ====================== -->
+    <section id="tab-nurse" class="tab-page">
+      <!-- Lock screen -->
+      <section id="nurseLock" class="card glass lock">
+        <div class="card-head">
+          <h2>Nurse Dashboard</h2>
+          <span class="pill">Private</span>
+        </div>
+
+        <p class="analysis">Enter PIN to access the triage queue.</p>
+
+        <div class="two-col">
+          <div class="field">
+            <label for="pin">PIN</label>
+            <input id="pin" type="password" placeholder="••••" />
+          </div>
+          <div class="field">
+            <label>&nbsp;</label>
+            <button id="unlockBtn" class="primary small">Unlock</button>
+          </div>
+        </div>
+
+        <p class="fineprint">Demo-only privacy (client-side). Replace with real auth later.</p>
+      </section>
+
+      <!-- Dashboard -->
+      <section id="nurseDash" class="hidden">
+        <section class="grid">
+          <section class="card">
+            <div class="card-head">
+              <h2>📋 Triage Queue</h2>
+              <div class="row">
+                <button id="refreshBtn" class="ghost small">Refresh</button>
+                <button id="clearBtn" class="ghost small danger">Clear queue</button>
+              </div>
+            </div>
+
+            <div class="metrics">
+              <div class="metric">
+                <div class="m-label">Critical (ESI 1–2)</div>
+                <div id="mCritical" class="m-value">0</div>
+              </div>
+              <div class="metric">
+                <div class="m-label">Total in queue</div>
+                <div id="mTotal" class="m-value">0</div>
+              </div>
+              <div class="metric">
+                <div class="m-label">Avg wait (demo)</div>
+                <div class="m-value">12 min</div>
+              </div>
+            </div>
+
+            <div id="queueList" class="queue"></div>
+          </section>
+
+          <aside class="side">
+            <section class="card glass">
+              <div class="card-head">
+                <h2>📹 Video Feed</h2>
+                <span class="pill blue">Live</span>
+              </div>
+
+              <div class="videoBox">
+                <video id="cam" autoplay playsinline muted></video>
+                <div id="camHint" class="camHint">Camera is off</div>
+              </div>
+
+              <div class="two-col">
+                <button id="startCamBtn" class="primary small">Start camera</button>
+                <button id="stopCamBtn" class="ghost small">Stop</button>
+              </div>
+
+              <details class="field">
+                <summary class="summary">Or embed a stream URL</summary>
+                <div class="field">
+                  <label for="streamUrl">Stream URL (YouTube/HTTP)</label>
+                  <input id="streamUrl" type="text" placeholder="https://..." />
+                </div>
+                <button id="loadStreamBtn" class="ghost small">Load</button>
+                <div id="embedWrap" class="embedWrap hidden"></div>
+              </details>
+            </section>
+
+            <section class="card" id="selectedCard">
+              <div class="card-head">
+                <h2>Selected Patient</h2>
+                <span class="pill blue">Details</span>
+              </div>
+              <p class="analysis muted">Click a patient in the queue to view details here.</p>
+            </section>
+          </aside>
+        </section>
+      </section>
+    </section>
+  </main>
 </body>
 </html>
