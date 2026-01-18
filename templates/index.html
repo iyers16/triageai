@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TriageAI | ESI System</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <nav>
+        <div class="logo">🏥 TriageAI</div>
+        <div class="tabs">
+            <button class="tab-btn active" onclick="openTab('kiosk')">Patient Kiosk</button>
+            <button class="tab-btn" onclick="openTab('camera')">🤖 Auto-Triage</button>
+            <button class="tab-btn" onclick="openTab('nurse')">Nurse Dashboard</button>
+        </div>
+    </nav>
+
+    <main>
+        
+        <section id="kiosk" class="tab-content active">
+            <div class="container">
+                <div class="card">
+                    <h2>Welcome to General Hospital</h2>
+                    <p>Please describe your symptoms to begin check-in.</p>
+                    
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" id="p_name" placeholder="John Doe">
+                    </div>
+                    <div class="form-group">
+                        <label>Age</label>
+                        <input type="number" id="p_age" value="30">
+                    </div>
+                    <div class="form-group">
+                        <label>Symptoms / Complaint</label>
+                        <textarea id="p_complaint" rows="5" placeholder="e.g. Sharp chest pain..."></textarea>
+                    </div>
+                    
+                    <button class="btn-primary" onclick="submitPatient()">🚨 Submit for Triage</button>
+                    <div id="kiosk-message" class="status-box hidden"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="camera" class="tab-content">
+            <div class="container wide">
+                <div class="split-view">
+                    <div class="cam-feed">
+                        <div class="cam-header">
+                            <h2>Sentinel Vision</h2>
+                            <span class="live-indicator">● LIVE</span>
+                        </div>
+                        <img src="/video_feed" alt="Live Feed" class="video-stream">
+                    </div>
+                    <div class="cam-stats">
+                        <h3>📡 Telemetry</h3>
+                        <div class="stat-item">✅ Choking Detection</div>
+                        <div class="stat-item">✅ Chest Pain (Levine's)</div>
+                        <div class="stat-item">✅ Fall Detection</div>
+                        <hr>
+                        <p class="small">System uses skeletal ratio analysis for depth-independent detection.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="nurse" class="tab-content">
+            <div class="container wide">
+                <div class="dash-header">
+                    <h2>Triage Queue</h2>
+                    <button onclick="fetchQueue()" class="btn-secondary">🔄 Refresh</button>
+                </div>
+                
+                <div id="queue-list">
+                    </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        const API = "http://localhost:5000/api";
+
+        function openTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            
+            // Show selected
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+            
+            // Auto-refresh queue if nurse tab opened
+            if (tabName === 'nurse') fetchQueue();
+        }
+
+        async function submitPatient() {
+            const btn = document.querySelector('.btn-primary');
+            const msgBox = document.getElementById('kiosk-message');
+            
+            btn.disabled = true;
+            btn.innerText = "Processing...";
+            
+            const data = {
+                name: document.getElementById('p_name').value,
+                age: document.getElementById('p_age').value,
+                complaint: document.getElementById('p_complaint').value
+            };
+
+            try {
+                const res = await fetch(`${API}/submit`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                
+                msgBox.innerHTML = `✅ Checked In. Assigned <b>ESI Level ${result.esi}</b>`;
+                msgBox.classList.remove('hidden');
+                document.getElementById('p_complaint').value = ""; // Clear
+            } catch (err) {
+                alert("Error submitting form");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "🚨 Submit for Triage";
+            }
+        }
+
+        async function fetchQueue() {
+            const res = await fetch(`${API}/queue`);
+            const patients = await res.json();
+            const list = document.getElementById('queue-list');
+            list.innerHTML = "";
+
+            if (patients.length === 0) {
+                list.innerHTML = "<p>No patients in queue.</p>";
+                return;
+            }
+
+            patients.forEach(p => {
+                // Styling Logic
+                let cssClass = "card-stable";
+                let badge = "STABLE";
+                if (p.esi === 0) { cssClass = "card-black"; badge = "CODE BLACK"; }
+                else if (p.esi === 1) { cssClass = "card-critical"; badge = "CRITICAL"; }
+                else if (p.esi === 2) { cssClass = "card-urgent"; badge = "URGENT"; }
+                
+                if (p.status === 'completed') { cssClass = "card-done"; }
+
+                // HTML Construction
+                const html = `
+                    <div class="patient-card ${cssClass}">
+                        <div class="card-top">
+                            <span class="badge">${badge} (ESI ${p.esi})</span>
+                            <span class="timestamp">${p.time}</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="info-col">
+                                <h3>${p.name} <small>(${p.age}y)</small></h3>
+                                <p><strong>Complaint:</strong> ${p.complaint}</p>
+                                <div class="ai-analysis">${p.analysis}</div>
+                            </div>
+                            <div class="evidence-col">
+                                ${p.snapshot ? `<img src="${p.snapshot}" class="evidence-img">` : ''}
+                            </div>
+                        </div>
+                        <div class="card-actions">
+                            ${p.status === 'active' ? 
+                                `<button onclick="markDone('${p.id}')">✅ Mark Resolved</button>` : 
+                                `<span>RESOLVED</span>`}
+                        </div>
+                    </div>
+                `;
+                list.innerHTML += html;
+            });
+        }
+
+        async function markDone(id) {
+            await fetch(`${API}/complete/${id}`, {method: 'POST'});
+            fetchQueue();
+        }
+
+        // Poll every 5 seconds if on nurse tab
+        setInterval(() => {
+            if (document.getElementById('nurse').classList.contains('active')) {
+                fetchQueue();
+            }
+        }, 5000);
+    </script>
+</body>
+</html>

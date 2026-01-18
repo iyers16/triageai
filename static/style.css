@@ -1,0 +1,61 @@
+:root {
+    --bg: #f8fafc;
+    --white: #ffffff;
+    --primary: #2563eb;
+    --black: #0f172a;
+    --red: #dc2626;
+    --orange: #ea580c;
+    --green: #16a34a;
+    --gray: #64748b;
+}
+
+body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; padding-bottom: 50px; }
+
+/* NAV */
+nav { background: var(--white); padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+.logo { font-weight: 800; font-size: 1.5rem; color: var(--primary); }
+.tab-btn { background: none; border: none; padding: 0.5rem 1rem; font-weight: 600; color: var(--gray); cursor: pointer; border-bottom: 2px solid transparent; }
+.tab-btn.active { color: var(--primary); border-color: var(--primary); }
+
+/* LAYOUT */
+.tab-content { display: none; margin-top: 2rem; }
+.tab-content.active { display: block; }
+.container { max-width: 800px; margin: 0 auto; padding: 0 1rem; }
+.container.wide { max-width: 1200px; }
+
+/* CARDS */
+.card { background: var(--white); padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+.form-group { margin-bottom: 1rem; }
+label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
+input, textarea { width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-family: inherit; }
+.btn-primary { width: 100%; padding: 1rem; background: var(--primary); color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+.btn-secondary { padding: 0.5rem 1rem; background: var(--white); border: 1px solid var(--gray); border-radius: 6px; cursor: pointer; }
+.status-box { margin-top: 1rem; padding: 1rem; background: #dcfce7; border-radius: 6px; color: var(--green); }
+.hidden { display: none; }
+
+/* CAMERA */
+.split-view { display: flex; gap: 2rem; }
+.cam-feed { flex: 2; position: relative; }
+.cam-stats { flex: 1; background: var(--white); padding: 1.5rem; border-radius: 12px; height: fit-content; }
+.video-stream { width: 100%; border-radius: 12px; border: 2px solid var(--black); }
+.live-indicator { color: var(--red); font-weight: bold; animation: pulse 1s infinite; margin-left: 10px; }
+@keyframes pulse { 0% {opacity: 1;} 50% {opacity: 0.5;} 100% {opacity: 1;} }
+
+/* QUEUE */
+.patient-card { background: var(--white); padding: 1.5rem; margin-bottom: 1rem; border-radius: 8px; border-left: 6px solid var(--gray); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.card-top { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
+.card-body { display: flex; gap: 1rem; }
+.info-col { flex: 3; }
+.evidence-col { flex: 1; }
+.evidence-img { width: 100%; border-radius: 4px; border: 1px solid #ccc; }
+.badge { font-weight: 800; padding: 2px 8px; border-radius: 4px; background: #f1f5f9; }
+
+/* SEVERITY COLORS */
+.card-black { border-color: var(--black); background: #f8fafc; border: 2px solid var(--black); }
+.card-black .badge { background: var(--black); color: white; }
+.card-critical { border-color: var(--red); }
+.card-urgent { border-color: var(--orange); }
+.card-done { opacity: 0.6; filter: grayscale(100%); }
+
+.card-actions { margin-top: 1rem; border-top: 1px solid #e2e8f0; padding-top: 0.5rem; text-align: right; }
+.card-actions button { background: var(--green); color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }

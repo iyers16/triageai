@@ -1,302 +1,124 @@
-import streamlit as st
-import os
-import re
+# app.py
+from flask import Flask, render_template, request, jsonify, Response
+from flask_cors import CORS
 import cv2
-import numpy as np
-import uuid
-from datetime import datetime
-from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-from langchain_chroma import Chroma
-from langchain_classic.prompts import PromptTemplate
-from langchain_classic.chains import RetrievalQA
+import threading
+import time
+import base64
 
-# IMPORT VISION
-from vision import VisionTriage
+# Import Modules
+from vision import VisionTriage 
+from services import TriageService, PatientManager
 
-# 1. SETUP & CONFIG
-st.set_page_config(page_title="TriageAI | ESI System", page_icon="🏥", layout="wide")
-load_dotenv()
+app = Flask(__name__)
+CORS(app)
 
-if not os.getenv("GOOGLE_API_KEY"):
-    st.error("❌ GOOGLE_API_KEY missing. Please check your .env file.")
-    st.stop()
+# --- GLOBAL STATE ---
+# Instantiate Logic Classes
+vision_system = VisionTriage()
+patient_mgr = PatientManager()
+triage_service = TriageService()
 
-# Initialize Session State
-if 'patients' not in st.session_state:
-    st.session_state.patients = []
+# Global variables for video streaming thread
+output_frame = None
+lock = threading.Lock()
 
-# Initialize Vision System
-if 'vision_system' not in st.session_state:
-    st.session_state.vision_system = VisionTriage()
-
-# 2. INITIALIZE AI ENGINE
-@st.cache_resource
-def load_chain():
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
-    vectorstore = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
-
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-flash-latest",
-        temperature=0.1,
-        convert_system_message_to_human=True
-    )
-
-    template = """
-    You are an expert Triage Nurse Assistant using the ESI (Emergency Severity Index).
+def camera_loop():
+    """Background thread for continuous video analysis."""
+    global output_frame, lock
+    cap = cv2.VideoCapture(0)
     
-    CONTEXT:
-    {context}
-    
-    PATIENT COMPLAINT:
-    {question}
-    
-    TASK:
-    1. Determine the ESI Level (1-5).
-    2. Start your response EXACTLY with "ESI LEVEL: X" where X is the number.
-    3. Provide a brief 2-sentence medical summary for the nurse.
-    4. List recommended immediate actions.
-    
-    ANALYSIS:
-    """
-    
-    prompt = PromptTemplate(template=template, input_variables=["context", "question"])
+    while True:
+        success, frame = cap.read()
+        if not success:
+            time.sleep(0.1)
+            continue
 
-    chain = RetrievalQA.from_chain_type(
-        llm=llm,
-        chain_type="stuff",
-        retriever=retriever,
-        chain_type_kwargs={"prompt": prompt},
-        return_source_documents=True
-    )
-    return chain
-
-try:
-    qa_chain = load_chain()
-except Exception as e:
-    st.error(f"Failed to load knowledge base: {e}")
-    st.stop()
-
-def extract_esi(text):
-    match = re.search(r"ESI LEVEL:\s*(\d)", text)
-    if match:
-        return int(match.group(1))
-    return 5
-
-# ==============================================================================
-# UI LAYOUT
-# ==============================================================================
-st.title("🏥 TriageAI: Hospital Intake System")
-
-tab_kiosk, tab_camera, tab_nurse = st.tabs(["Patient Kiosk", "🤖 Auto-Triage (Camera)", "Nurse Dashboard"])
-
-# ------------------------------------------------------------------------------
-# TAB 1: PATIENT KIOSK
-# ------------------------------------------------------------------------------
-with tab_kiosk:
-    st.subheader("Welcome to General Hospital")
-    st.caption("Please describe your symptoms to begin check-in.")
-    
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        name = st.text_input("Full Name", placeholder="John Doe")
-        age = st.number_input("Age", min_value=0, max_value=120, value=30)
+        # 1. Run Vision Analysis
+        annotated_frame, alert = vision_system.analyze_frame(frame)
         
-        input_method = st.radio("Input Method", ["Text Description", "Voice Transcript"])
-        
-        if input_method == "Text Description":
-            complaint = st.text_area("What are your symptoms?", height=150, 
-                                   placeholder="e.g., I have sharp chest pain...")
-        else:
-            complaint = st.text_area("Transcript", value="Subject states crushing chest pressure...", height=150)
-
-        submit_btn = st.button("🚨 Submit for Triage", type="primary", use_container_width=True)
-
-    with col2:
-        if submit_btn and complaint and name:
-            with st.status("Analyzing Vitals & Protocols...", expanded=True) as status:
-                st.write("Consulting ESI Handbook...")
-                
-                response = qa_chain.invoke({"query": f"Age: {age}. Complaint: {complaint}"})
-                result_text = response['result']
-                esi_level = extract_esi(result_text)
-                
-                new_patient = {
-                    "id": str(uuid.uuid4()), # Unique ID for button tracking
-                    "time": datetime.now().strftime("%H:%M:%S"),
-                    "name": name,
-                    "age": age,
-                    "complaint": complaint,
-                    "esi": esi_level,
-                    "analysis": result_text,
-                    "source_docs": response['source_documents'],
-                    "status": "active", # active | completed
-                    "snapshot": None # No image for text patients
-                }
-                st.session_state.patients.append(new_patient)
-                
-                status.update(label="Check-in Complete", state="complete", expanded=False)
+        # 2. Handle "Code Black" Logic (Server-Side)
+        if alert:
+            active_patients = patient_mgr.get_active()
+            # De-duplication: Check last active patient
+            last_complaint = active_patients[-1]['complaint'] if active_patients else ""
             
-            st.success("✅ Checked in.")
+            if f"CODE BLACK: {alert}" not in last_complaint:
+                print(f"🚨 DETECTED: {alert}")
+                
+                # Convert frame to base64 for storage/display in dashboard
+                _, buffer = cv2.imencode('.jpg', annotated_frame)
+                b64_img = base64.b64encode(buffer).decode('utf-8')
+                
+                patient_mgr.add_patient(
+                    name="Unknown (Auto-Detected)",
+                    age="N/A",
+                    complaint=f"CODE BLACK: {alert}",
+                    esi=0, 
+                    analysis=f"**VISUAL OVERRIDE:** System detected {alert}.",
+                    source_docs=[],
+                    snapshot=f"data:image/jpeg;base64,{b64_img}"
+                )
 
-# ------------------------------------------------------------------------------
-# TAB 2: AUTO-TRIAGE (Camera Override)
-# ------------------------------------------------------------------------------
-with tab_camera:
-    st.subheader("Visual Anomaly Detection")
-    st.caption("Active monitoring for Choking, Chest Pain, or Falls.")
-
-    col_cam, col_log = st.columns([2, 1])
-
-    with col_cam:
-        run_camera = st.toggle("Activate Live Scanner", value=False)
-        cam_placeholder = st.empty()
-
-        if run_camera:
-            cap = cv2.VideoCapture(0)
+        # 3. Update global frame for streaming
+        with lock:
+            output_frame = annotated_frame.copy()
             
-            while run_camera:
-                ret, frame = cap.read()
-                if not ret:
-                    st.error("Cannot access camera.")
-                    break
-                
-                # Run Vision Analysis
-                annotated_frame, alert = st.session_state.vision_system.analyze_frame(frame)
-                
-                # Display Live Frame
-                frame_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
-                cam_placeholder.image(frame_rgb, channels="RGB", use_container_width=True)
+        time.sleep(0.03) # Cap at ~30 FPS
 
-                # --- CODE BLACK OVERRIDE ---
-                if alert:
-                    # Deduplication: Check if the last patient is the same alert type
-                    last_entry = st.session_state.patients[-1] if st.session_state.patients else None
-                    
-                    if not last_entry or last_entry['complaint'] != f"CODE BLACK: {alert}":
-                        
-                        # Capture the specific frame as evidence
-                        snapshot_evidence = frame_rgb.copy()
-                        
-                        new_patient = {
-                            "id": str(uuid.uuid4()),
-                            "time": datetime.now().strftime("%H:%M:%S"),
-                            "name": "Unknown (Auto-Detected)",
-                            "age": "N/A",
-                            "complaint": f"CODE BLACK: {alert}",
-                            "esi": 0, # PRIORITY 0 (Highest Possible)
-                            "analysis": f"**VISUAL OVERRIDE:** System detected {alert}. \n\nSee attached snapshot for skeletal analysis.",
-                            "source_docs": [],
-                            "status": "active",
-                            "snapshot": snapshot_evidence # Save the numpy array
-                        }
-                        
-                        st.session_state.patients.append(new_patient)
-                        st.toast(f"🚨 CODE BLACK: {alert}", icon="🚨")
-                        
-                        # Optional: Sleep briefly to avoid 60 duplicates per second
-                        # time.sleep(2) 
+# Start the Camera Thread
+t = threading.Thread(target=camera_loop, daemon=True)
+t.start()
 
-            cap.release()
-        else:
-            cam_placeholder.info("Scanner Offline.")
+# --- ROUTES ---
 
-    with col_log:
-        st.markdown("### 📡 Live Telemetry")
-        if run_camera:
-            st.success("System Active")
-            st.markdown("**Protocols:**\n* [x] Choking\n* [x] Chest Pain\n* [x] Fall Detection")
-        else:
-            st.warning("System Paused")
+@app.route('/')
+def index():
+    """Renders the main single-page UI."""
+    return render_template('index.html')
 
-# ------------------------------------------------------------------------------
-# TAB 3: NURSE DASHBOARD (Task Management)
-# ------------------------------------------------------------------------------
-with tab_nurse:
+@app.route('/video_feed')
+def video_feed():
+    """Streams the video feed to the browser via MJPEG."""
+    def generate():
+        global output_frame, lock
+        while True:
+            with lock:
+                if output_frame is None:
+                    continue
+                (flag, encodedImage) = cv2.imencode(".jpg", output_frame)
+                if not flag:
+                    continue
+            yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + 
+                  bytearray(encodedImage) + b'\r\n')
+            time.sleep(0.05)
+    return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+# --- API ENDPOINTS ---
+
+@app.route('/api/submit', methods=['POST'])
+def submit_patient():
+    data = request.json
+    esi, analysis, docs = triage_service.analyze(data['age'], data['complaint'])
     
-    # 1. Filter Lists
-    active_patients = [p for p in st.session_state.patients if p['status'] == 'active']
-    completed_patients = [p for p in st.session_state.patients if p['status'] == 'completed']
+    patient_mgr.add_patient(
+        name=data['name'],
+        age=data['age'],
+        complaint=data['complaint'],
+        esi=esi,
+        analysis=analysis,
+        source_docs=docs
+    )
+    return jsonify({"status": "success", "esi": esi})
 
-    # 2. Header Stats
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Active Queue", len(active_patients))
-    c2.metric("Code Blacks", sum(1 for p in active_patients if p['esi'] == 0))
-    c3.metric("Critical (ESI 1-2)", sum(1 for p in active_patients if 0 < p['esi'] < 3))
-    c4.metric("Completed", len(completed_patients))
-    
-    st.divider()
+@app.route('/api/queue', methods=['GET'])
+def get_queue():
+    return jsonify(patient_mgr.get_all())
 
-    # 3. ACTIVE QUEUE
-    st.subheader("🔥 Active Queue")
-    
-    if not active_patients:
-        st.info("No active patients.")
-    else:
-        # Sort by ESI (0 is top priority)
-        sorted_active = sorted(active_patients, key=lambda x: x['esi'])
+@app.route('/api/complete/<id>', methods=['POST'])
+def complete_patient(id):
+    success = patient_mgr.mark_done(id)
+    return jsonify({"success": success})
 
-        for p in sorted_active:
-            # Color Coding
-            if p['esi'] == 0:
-                severity_label = "⚫ CODE BLACK (IMMEDIATE)"
-                border_color = "black"
-            elif p['esi'] == 1:
-                severity_label = "🔴 CRITICAL (Resuscitation)"
-                border_color = "red"
-            elif p['esi'] == 2:
-                severity_label = "🟠 EMERGENT (High Risk)"
-                border_color = "orange"
-            elif p['esi'] == 3:
-                severity_label = "🟡 URGENT"
-                border_color = "#ebd534"
-            else:
-                severity_label = "🟢 STABLE"
-                border_color = "green"
-
-            # Patient Card
-            with st.expander(f"**[{severity_label}]** {p['name']} - {p['time']}"):
-                
-                # Layout: 3 Columns (Snapshot, Info, Actions)
-                k1, k2, k3 = st.columns([2, 2, 1])
-
-                with k1:
-                    st.markdown("### 📸 Evidence")
-                    if p['snapshot'] is not None:
-                        st.image(p['snapshot'], caption="Auto-Capture Event", use_container_width=True)
-                    else:
-                        st.info("No visual evidence (Text Submission).")
-
-                with k2:
-                    st.markdown("### 📝 Clinical Data")
-                    st.write(f"**Complaint:** {p['complaint']}")
-                    st.write(f"**Age:** {p['age']}")
-                    st.markdown("---")
-                    st.write(p['analysis'])
-
-                with k3:
-                    st.markdown("### ⚡ Actions")
-                    if st.button("✅ Mark Done", key=f"btn_done_{p['id']}"):
-                        # Find original index and update
-                        for i, original_p in enumerate(st.session_state.patients):
-                            if original_p['id'] == p['id']:
-                                st.session_state.patients[i]['status'] = 'completed'
-                                st.rerun()
-
-    # 4. COMPLETED SECTION
-    st.divider()
-    with st.expander("✅ Completed / Discharged Patients"):
-        if not completed_patients:
-            st.caption("No history yet.")
-        else:
-            for p in reversed(completed_patients): # Show most recent first
-                st.markdown(f"**{p['name']}** (ESI {p['esi']}) - *Resolved at {datetime.now().strftime('%H:%M')}*")
-
-# Sidebar Admin
-with st.sidebar:
-    st.header("⚙️ Admin")
-    if st.button("Clear All Data"):
-        st.session_state.patients = []
-        st.rerun()
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)
