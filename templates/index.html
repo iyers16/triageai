@@ -1,194 +1,256 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TriageAI | ESI System</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <title>CodeBlue — Emergency Intake</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="stylesheet" href="/static/style.css">
+
+  <script defer src="/static/script.js"></script>
 </head>
+
 <body>
+  <!-- ====================== HERO ====================== -->
+  <header class="hero">
+    <div class="hero-bg"></div>
 
-    <nav>
-        <div class="logo">🏥 TriageAI</div>
-        <div class="tabs">
-            <button class="tab-btn active" onclick="openTab('kiosk')">Patient Kiosk</button>
-            <button class="tab-btn" onclick="openTab('camera')">🤖 Auto-Triage</button>
-            <button class="tab-btn" onclick="openTab('nurse')">Nurse Dashboard</button>
+    <div class="hero-content">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">🟦</div>
+        <div>
+          <h1>CodeBlue</h1>
+          <p>AI-powered emergency intake & triage support</p>
         </div>
-    </nav>
+      </div>
 
-    <main>
-        
-        <section id="kiosk" class="tab-content active">
-            <div class="container">
-                <div class="card">
-                    <h2>Welcome to General Hospital</h2>
-                    <p>Please describe your symptoms to begin check-in.</p>
-                    
-                    <div class="form-group">
-                        <label>Full Name</label>
-                        <input type="text" id="p_name" placeholder="John Doe">
-                    </div>
-                    <div class="form-group">
-                        <label>Age</label>
-                        <input type="number" id="p_age" value="30">
-                    </div>
-                    <div class="form-group">
-                        <label>Symptoms / Complaint</label>
-                        <textarea id="p_complaint" rows="5" placeholder="e.g. Sharp chest pain..."></textarea>
-                    </div>
-                    
-                    <button class="btn-primary" onclick="submitPatient()">🚨 Submit for Triage</button>
-                    <div id="kiosk-message" class="status-box hidden"></div>
-                </div>
+      <nav class="tabs" aria-label="Main tabs">
+        <button class="tab active" data-tab="kiosk">Patient Kiosk (Public)</button>
+        <button class="tab" data-tab="nurse">Nurse Dashboard (Private)</button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ====================== MAIN ====================== -->
+  <main class="container">
+    <!-- ====================== KIOSK ====================== -->
+    <section id="tab-kiosk" class="tab-page active">
+      <section class="grid">
+        <!-- Left: Form -->
+        <section class="card">
+          <div class="card-head">
+            <h2>Patient Check-In</h2>
+            <span class="pill blue">Public intake</span>
+          </div>
+
+          <div class="field">
+            <label for="name">Full Name</label>
+            <input id="name" type="text" placeholder="Jane Doe" />
+          </div>
+
+          <div class="two-col">
+            <div class="field">
+              <label for="age">Age</label>
+              <input id="age" type="number" value="30" min="0" max="120" />
             </div>
+
+            <div class="field">
+              <label for="sex">Sex</label>
+              <select id="sex">
+                <option>Female</option>
+                <option>Male</option>
+                <option>Prefer not to say</option>
+              </select>
+            </div>
+          </div>
+
+          <details class="field">
+            <summary class="summary">Optional vitals (if measured)</summary>
+            <div class="two-col">
+              <div class="field">
+                <label for="hr">Heart rate</label>
+                <input id="hr" type="number" placeholder="bpm" min="0" max="250" />
+              </div>
+              <div class="field">
+                <label for="sbp">Systolic BP</label>
+                <input id="sbp" type="number" placeholder="mmHg" min="0" max="260" />
+              </div>
+            </div>
+            <div class="two-col">
+              <div class="field">
+                <label for="rr">Resp. rate</label>
+                <input id="rr" type="number" placeholder="/min" min="0" max="80" />
+              </div>
+              <div class="field">
+                <label for="temp">Temp</label>
+                <input id="temp" type="number" step="0.1" placeholder="°C" min="30" max="43" />
+              </div>
+            </div>
+          </details>
+
+          <div class="field">
+            <label for="complaint">Symptoms</label>
+            <textarea
+              id="complaint"
+              rows="4"
+              placeholder="Chest pain for 20 minutes, shortness of breath, sweating..."
+            ></textarea>
+          </div>
+
+          <button id="submitBtn" class="primary">
+            <span class="btn-icon">🚑</span>
+            <span class="btn-text">Submit for Triage</span>
+            <span class="spinner" aria-hidden="true"></span>
+          </button>
+
+          <p id="kioskError" class="fineprint hidden" style="color:#fb7185;">
+            Something went wrong. Please try again or alert staff.
+          </p>
+
+          <p class="fineprint">
+            Decision support only. Final triage is determined by licensed staff.
+          </p>
         </section>
 
-        <section id="camera" class="tab-content">
-            <div class="container wide">
-                <div class="split-view">
-                    <div class="cam-feed">
-                        <div class="cam-header">
-                            <h2>Sentinel Vision</h2>
-                            <span class="live-indicator">● LIVE</span>
-                        </div>
-                        <img src="/video_feed" alt="Live Feed" class="video-stream">
-                    </div>
-                    <div class="cam-stats">
-                        <h3>📡 Telemetry</h3>
-                        <div class="stat-item">✅ Choking Detection</div>
-                        <div class="stat-item">✅ Chest Pain (Levine's)</div>
-                        <div class="stat-item">✅ Fall Detection</div>
-                        <hr>
-                        <p class="small">System uses skeletal ratio analysis for depth-independent detection.</p>
-                    </div>
-                </div>
+        <!-- Right: Info / Result -->
+        <aside class="side">
+          <section class="card glass">
+            <h3>What happens next?</h3>
+            <ul class="bullets">
+              <li>Your intake is structured for triage.</li>
+              <li>Nurse dashboard prioritizes urgent cases first.</li>
+              <li>If symptoms worsen, alert staff immediately.</li>
+            </ul>
+
+            <div class="tip">
+              <span>🟦</span>
+              <div>CodeBlue is designed for calm, fast triage workflow — not panic UI.</div>
             </div>
-        </section>
+          </section>
 
-        <section id="nurse" class="tab-content">
-            <div class="container wide">
-                <div class="dash-header">
-                    <h2>Triage Queue</h2>
-                    <button onclick="fetchQueue()" class="btn-secondary">🔄 Refresh</button>
-                </div>
-                
-                <div id="queue-list">
-                    </div>
+          <section id="result" class="card hidden">
+            <div class="result-head">
+              <h3>Triage Result</h3>
+              <div id="esiBadge" class="esi-badge">ESI LEVEL —</div>
             </div>
+
+            <p id="analysis" class="analysis"></p>
+
+            <div class="actions">
+              <button id="copyBtn" class="ghost">Copy summary</button>
+              <button id="newBtn" class="ghost">New check-in</button>
+              <button id="goNurseBtn" class="ghost">Open nurse view</button>
+            </div>
+          </section>
+
+          <section id="kioskSuccess" class="card hidden">
+            <h3>✅ Check-in complete</h3>
+            <p class="analysis">
+              Please take a seat in the waiting area. A nurse has been notified.
+            </p>
+          </section>
+        </aside>
+      </section>
+    </section>
+
+    <!-- ====================== NURSE ====================== -->
+    <section id="tab-nurse" class="tab-page">
+      <!-- Lock screen -->
+      <section id="nurseLock" class="card glass lock">
+        <div class="card-head">
+          <h2>Nurse Dashboard</h2>
+          <span class="pill">Private</span>
+        </div>
+
+        <p class="analysis">Enter PIN to access the triage queue.</p>
+
+        <div class="two-col">
+          <div class="field">
+            <label for="pin">PIN</label>
+            <input id="pin" type="password" placeholder="••••" />
+          </div>
+          <div class="field">
+            <label>&nbsp;</label>
+            <button id="unlockBtn" class="primary small">Unlock</button>
+          </div>
+        </div>
+
+        <p class="fineprint">Demo-only privacy (client-side). Replace with real auth later.</p>
+      </section>
+
+      <!-- Dashboard -->
+      <section id="nurseDash" class="hidden">
+        <section class="grid">
+          <!-- Queue + metrics -->
+          <section class="card">
+            <div class="card-head">
+              <h2>📋 Triage Queue</h2>
+              <div class="row">
+                <button id="refreshBtn" class="ghost small">Refresh</button>
+                <button id="clearBtn" class="ghost small danger">Clear queue</button>
+              </div>
+            </div>
+
+            <div class="metrics">
+              <div class="metric">
+                <div class="m-label">Critical (ESI 1–2)</div>
+                <div id="mCritical" class="m-value">0</div>
+              </div>
+              <div class="metric">
+                <div class="m-label">Total in queue</div>
+                <div id="mTotal" class="m-value">0</div>
+              </div>
+              <div class="metric">
+                <div class="m-label">Avg wait (demo)</div>
+                <div class="m-value">12 min</div>
+              </div>
+            </div>
+
+            <div id="queueList" class="queue"></div>
+          </section>
+
+          <!-- Video + selected -->
+          <aside class="side">
+            <section class="card glass">
+              <div class="card-head">
+                <h2>📹 Video Feed</h2>
+                <span class="pill blue">Live</span>
+              </div>
+
+              <div class="videoBox">
+                <video id="cam" autoplay playsinline muted></video>
+                <div id="camHint" class="camHint">Camera is off</div>
+              </div>
+
+              <div class="two-col">
+                <button id="startCamBtn" class="primary small">Start camera</button>
+                <button id="stopCamBtn" class="ghost small">Stop</button>
+              </div>
+
+              <details class="field">
+                <summary class="summary">Or embed a stream URL</summary>
+                <div class="field">
+                  <label for="streamUrl">Stream URL (YouTube/HTTP)</label>
+                  <input id="streamUrl" type="text" placeholder="https://..." />
+                </div>
+                <button id="loadStreamBtn" class="ghost small">Load</button>
+                <div id="embedWrap" class="embedWrap hidden"></div>
+              </details>
+            </section>
+
+            <section class="card" id="selectedCard">
+              <div class="card-head">
+                <h2>Selected Patient</h2>
+                <span class="pill blue">Details</span>
+              </div>
+              <p class="analysis muted">
+                Click a patient in the queue to view details here.
+              </p>
+            </section>
+          </aside>
         </section>
-
-    </main>
-
-    <script>
-        const API = "http://localhost:5000/api";
-
-        function openTab(tabName) {
-            // Hide all tabs
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-            
-            // Show selected
-            document.getElementById(tabName).classList.add('active');
-            event.target.classList.add('active');
-            
-            // Auto-refresh queue if nurse tab opened
-            if (tabName === 'nurse') fetchQueue();
-        }
-
-        async function submitPatient() {
-            const btn = document.querySelector('.btn-primary');
-            const msgBox = document.getElementById('kiosk-message');
-            
-            btn.disabled = true;
-            btn.innerText = "Processing...";
-            
-            const data = {
-                name: document.getElementById('p_name').value,
-                age: document.getElementById('p_age').value,
-                complaint: document.getElementById('p_complaint').value
-            };
-
-            try {
-                const res = await fetch(`${API}/submit`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(data)
-                });
-                const result = await res.json();
-                
-                msgBox.innerHTML = `✅ Checked In. Assigned <b>ESI Level ${result.esi}</b>`;
-                msgBox.classList.remove('hidden');
-                document.getElementById('p_complaint').value = ""; // Clear
-            } catch (err) {
-                alert("Error submitting form");
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "🚨 Submit for Triage";
-            }
-        }
-
-        async function fetchQueue() {
-            const res = await fetch(`${API}/queue`);
-            const patients = await res.json();
-            const list = document.getElementById('queue-list');
-            list.innerHTML = "";
-
-            if (patients.length === 0) {
-                list.innerHTML = "<p>No patients in queue.</p>";
-                return;
-            }
-
-            patients.forEach(p => {
-                // Styling Logic
-                let cssClass = "card-stable";
-                let badge = "STABLE";
-                if (p.esi === 0) { cssClass = "card-black"; badge = "CODE BLACK"; }
-                else if (p.esi === 1) { cssClass = "card-critical"; badge = "CRITICAL"; }
-                else if (p.esi === 2) { cssClass = "card-urgent"; badge = "URGENT"; }
-                
-                if (p.status === 'completed') { cssClass = "card-done"; }
-
-                // HTML Construction
-                const html = `
-                    <div class="patient-card ${cssClass}">
-                        <div class="card-top">
-                            <span class="badge">${badge} (ESI ${p.esi})</span>
-                            <span class="timestamp">${p.time}</span>
-                        </div>
-                        <div class="card-body">
-                            <div class="info-col">
-                                <h3>${p.name} <small>(${p.age}y)</small></h3>
-                                <p><strong>Complaint:</strong> ${p.complaint}</p>
-                                <div class="ai-analysis">${p.analysis}</div>
-                            </div>
-                            <div class="evidence-col">
-                                ${p.snapshot ? `<img src="${p.snapshot}" class="evidence-img">` : ''}
-                            </div>
-                        </div>
-                        <div class="card-actions">
-                            ${p.status === 'active' ? 
-                                `<button onclick="markDone('${p.id}')">✅ Mark Resolved</button>` : 
-                                `<span>RESOLVED</span>`}
-                        </div>
-                    </div>
-                `;
-                list.innerHTML += html;
-            });
-        }
-
-        async function markDone(id) {
-            await fetch(`${API}/complete/${id}`, {method: 'POST'});
-            fetchQueue();
-        }
-
-        // Poll every 5 seconds if on nurse tab
-        setInterval(() => {
-            if (document.getElementById('nurse').classList.contains('active')) {
-                fetchQueue();
-            }
-        }, 5000);
-    </script>
+      </section>
+    </section>
+  </main>
 </body>
 </html>
