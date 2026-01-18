@@ -185,10 +185,39 @@ class VisionTriage:
 
             # 3. Draw Alert Banner if needed
             if alert:
+                # 1. Define Prominent Styling
+                font_scale = 1.5  # Increased from 0.9 for visibility
+                thickness = 3
+                font = cv2.FONT_HERSHEY_SIMPLEX
                 color = (0, 0, 255) if "CRITICAL" in alert else (0, 165, 255)
-                cv2.rectangle(annotated_frame, (0, 0), (w, 60), color, -1)
+                
+                # 2. Prepare Text & Calculate Size
                 alert_text = f"{alert} ({confidence}%)"
-                cv2.putText(annotated_frame, alert_text, (20, 40),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
+                (text_w, text_h), baseline = cv2.getTextSize(alert_text, font, font_scale, thickness)
+                
+                # 3. Calculate Centered Coordinates
+                # h and w are height and width of annotated_frame
+                h, w = annotated_frame.shape[:2] 
+                
+                center_x = w // 2
+                center_y = h // 2
+                
+                text_x = center_x - (text_w // 2)
+                text_y = center_y + (text_h // 2)
+                
+                # 4. Draw Background Box (with padding)
+                padding_x, padding_y = 30, 20
+                box_p1 = (text_x - padding_x, text_y - text_h - padding_y)
+                box_p2 = (text_x + text_w + padding_x, text_y + padding_y + baseline)
+                
+                # Draw filled box
+                cv2.rectangle(annotated_frame, box_p1, box_p2, color, -1)
+                
+                # Optional: Draw a white border around the box for contrast
+                cv2.rectangle(annotated_frame, box_p1, box_p2, (255, 255, 255), 2)
+
+                # 5. Draw Text
+                cv2.putText(annotated_frame, alert_text, (text_x, text_y),
+                            font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
 
         return annotated_frame, alert
