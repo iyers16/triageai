@@ -7,10 +7,10 @@ def open_camera_stream():
     # http://192.168.0.101:4747/mjpegfeed
     
     # TIP: If you are connected via USB, the IP is often 127.0.0.1 (localhost)
-    droidcam_url = "http://10.215.39.34:4747/video" 
+    # droidcam_url = "http://10.215.39.34:4747/video" 
     
-    print(f"Connecting to {droidcam_url}...")
-    cap = cv2.VideoCapture(droidcam_url)
+    # print(f"Connecting to {droidcam_url}...")
+    cap = cv2.VideoCapture("http://10.102.199.32:4747/video")
 
     if not cap.isOpened():
         print("Error: Could not open video stream. Check IP/Port.")

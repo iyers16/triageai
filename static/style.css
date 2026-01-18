@@ -631,10 +631,12 @@ button{ border:none; font-family:inherit; }
   height: 220px;
 }
 
-.videoBox video{
-  width:100%;
-  height:100%;
-  object-fit: cover;
+/* Targets the specific class you used in index.html */
+.videoBox .video-stream {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Ensures it fills the box without stretching */
+  display: block;    /* Removes standard inline-image spacing issues */
 }
 
 .camHint{
