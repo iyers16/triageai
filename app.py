@@ -79,7 +79,7 @@ def camera_worker(cam_id, url):
                 b64_img = base64.b64encode(buffer).decode('utf-8')
                 
                 patient_mgr.add_patient(
-                    name=f"Unknown (Cam {cam_id})",
+                    name=f"Room {cam_id} (Cam {cam_id})",
                     age="N/A",
                     complaint=alert_msg,
                     esi=0, 
