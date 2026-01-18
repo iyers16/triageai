@@ -15,7 +15,7 @@ CORS(app)
 
 # --- GLOBAL STATE ---
 # Instantiate Logic Classes
-#vision_system = VisionTriage()
+vision_system = VisionTriage()
 patient_mgr = PatientManager()
 triage_service = TriageService()
 
@@ -25,48 +25,46 @@ lock = threading.Lock()
 
 def camera_loop():
     """Background thread for continuous video analysis."""
-    # global output_frame, lock
-    # cap = cv2.VideoCapture(0)
+    global output_frame, lock
+    cap = cv2.VideoCapture("http://10.215.39.34:4747/video")
     
-    # while True:
-    #     success, frame = cap.read()
-    #     if not success:
-    #         time.sleep(0.1)
-    #         continue
+    while True:
+        success, frame = cap.read()
+        if not success:
+            time.sleep(0.1)
+            continue
 
-    #     # 1. Run Vision Analysis
-    #     annotated_frame, alert = vision_system.analyze_frame(frame)
+        # 1. Run Vision Analysis
+        annotated_frame, alert = vision_system.analyze_frame(frame)
         
-    #     # 2. Handle "Code Black" Logic (Server-Side)
-    #     if alert:
-    #         active_patients = patient_mgr.get_active()
-    #         # De-duplication: Check last active patient
-    #         last_complaint = active_patients[-1]['complaint'] if active_patients else ""
+        # 2. Handle "Code Black" Logic (Server-Side)
+        if alert:
+            active_patients = patient_mgr.get_active()
+            # De-duplication: Check last active patient
+            last_complaint = active_patients[-1]['complaint'] if active_patients else ""
             
-    #         if f"CODE BLACK: {alert}" not in last_complaint:
-    #             print(f"🚨 DETECTED: {alert}")
+            if f"CODE BLACK: {alert}" not in last_complaint:
+                print(f"🚨 DETECTED: {alert}")
                 
-    #             # Convert frame to base64 for storage/display in dashboard
-    #             _, buffer = cv2.imencode('.jpg', annotated_frame)
-    #             b64_img = base64.b64encode(buffer).decode('utf-8')
+                # Convert frame to base64 for storage/display in dashboard
+                _, buffer = cv2.imencode('.jpg', annotated_frame)
+                b64_img = base64.b64encode(buffer).decode('utf-8')
                 
-    #             patient_mgr.add_patient(
-    #                 name="Unknown (Auto-Detected)",
-    #                 age="N/A",
-    #                 complaint=f"CODE BLACK: {alert}",
-    #                 esi=0, 
-    #                 analysis=f"**VISUAL OVERRIDE:** System detected {alert}.",
-    #                 source_docs=[],
-    #                 snapshot=f"data:image/jpeg;base64,{b64_img}"
-    #             )
+                patient_mgr.add_patient(
+                    name="Unknown (Auto-Detected)",
+                    age="N/A",
+                    complaint=f"CODE BLACK: {alert}",
+                    esi=0, 
+                    analysis=f"**VISUAL OVERRIDE:** System detected {alert}.",
+                    source_docs=[],
+                    snapshot=f"data:image/jpeg;base64,{b64_img}"
+                )
 
-    #     # 3. Update global frame for streaming
-    #     with lock:
-    #         output_frame = annotated_frame.copy()
+        # 3. Update global frame for streaming
+        with lock:
+            output_frame = annotated_frame.copy()
             
-    #     time.sleep(0.03) # Cap at ~30 FPS
-
-    return
+        time.sleep(0.03) # Cap at ~30 FPS
 
 # Start the Camera Thread
 t = threading.Thread(target=camera_loop, daemon=True)

@@ -209,7 +209,6 @@
             <div id="queueList" class="queue"></div>
           </section>
 
-          <!-- Video + selected -->
           <aside class="side">
             <section class="card glass">
               <div class="card-head">
@@ -218,25 +217,8 @@
               </div>
 
               <div class="videoBox">
-                <video id="cam" autoplay playsinline muted></video>
-                <div id="camHint" class="camHint">Camera is off</div>
+                <img src="/video_feed" alt="Live Feed" class="video-stream">
               </div>
-
-              <div class="two-col">
-                <button id="startCamBtn" class="primary small">Start camera</button>
-                <button id="stopCamBtn" class="ghost small">Stop</button>
-              </div>
-
-              <details class="field">
-                <summary class="summary">Or embed a stream URL</summary>
-                <div class="field">
-                  <label for="streamUrl">Stream URL (YouTube/HTTP)</label>
-                  <input id="streamUrl" type="text" placeholder="https://..." />
-                </div>
-                <button id="loadStreamBtn" class="ghost small">Load</button>
-                <div id="embedWrap" class="embedWrap hidden"></div>
-              </details>
-            </section>
 
             <section class="card" id="selectedCard">
               <div class="card-head">
