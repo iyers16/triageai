@@ -156,30 +156,68 @@ function updateKioskResult(result) {
 }
 
 // ============ NURSE DASHBOARD ============
-function setupNurse() {
-  const unlockBtn = document.getElementById("unlockBtn");
-  const refreshBtn = document.getElementById("refreshBtn");
-  const clearBtn = document.getElementById("clearBtn");
 
-  if (unlockBtn) {
-    unlockBtn.addEventListener("click", () => {
-      const pinInput = document.getElementById("pin");
-      const lock = document.getElementById("nurseLock");
-      const dash = document.getElementById("nurseDash");
-
-      // Simple demo PIN; adjust if you want, doesn't touch backend
-      const PIN = "1234";
-
-      if (pinInput.value === PIN) {
-        lock.classList.add("hidden");
-        dash.classList.remove("hidden");
+document.addEventListener("DOMContentLoaded", () => {
+  fetch("/session")
+    .then(res => res.json())
+    .then(data => {
+        console.log("DATA: ");
+        console.log(data);
+      if (data.logged_in) {
+        // lock.classList.add("hidden");
+        // dash.classList.remove("hidden");
+        document.getElementById("loginBtn").hidden = true; 
         fetchQueue();
-      } else {
-        pinInput.value = "";
-        pinInput.placeholder = "Wrong PIN";
       }
     });
+});
+
+function setupNurse() {
+//   const unlockBtn = document.getElementById('unlockBtn');
+  const loginBtn = document.getElementById("loginBtn");
+  const clearBtn = document.getElementById("clearBtn");
+
+    fetch("/session")
+    .then(res => res.json())
+    .then(data => {
+      console.log("DATA: ", data);
+      console.log("IN: ", data.logged_in); 
+      if (data.logged_in) {
+        if (loginBtn){
+            console.log("In this");
+            console.log("loginBtn:", loginBtn);
+            document.getElementById('loginStr').style.display = "none"; 
+            loginBtn.style.display = "none";
+        }
+        // if (lock && dash) {
+        //   lock.classList.add("hidden");
+        //   dash.classList.remove("hidden");
+        // }
+        fetchQueue();
+      }
+    });
+
+  // Setup login button
+  if (loginBtn) {
+    loginBtn.addEventListener("click", () => {
+      window.location.href = "/login";
+    });
   }
+
+
+        // // Simple demo PIN; adjust if you want, doesn't touch backend
+        // const PIN = "1234";
+
+        // if (pinInput.value === PIN) {
+        // lock.classList.add("hidden");
+        // dash.classList.remove("hidden");
+        // fetchQueue();
+        // } else {
+        // pinInput.value = "";
+        // pinInput.placeholder = "Wrong PIN";
+        // }
+//     });
+//   }
 
   if (refreshBtn) {
     refreshBtn.addEventListener("click", fetchQueue);

@@ -10,14 +10,40 @@ import base64
 from vision import VisionTriage 
 from services import TriageService, PatientManager
 
+# Auth0
+import json
+from os import environ as env
+from urllib.parse import quote_plus, urlencode
+from authlib.integrations.flask_client import OAuth
+from dotenv import find_dotenv, load_dotenv
+from flask import Flask, redirect, render_template, session, url_for
+
 app = Flask(__name__)
+app.secret_key = env.get("AUTH0_SECRET")
 CORS(app)
+
+ENV_FILE = find_dotenv()
+if ENV_FILE:
+    load_dotenv(ENV_FILE)
 
 # --- CONFIGURATION ---
 CAM_SOURCES = {
     1: "http://10.115.10.189:4747/video",  # Camera 1
     2: "http://10.215.39.34:4747/video"   # Camera 2
 }
+
+
+oauth = OAuth(app)
+
+oauth.register(
+    "auth0",
+    client_id=env.get("AUTH0_CLIENT_ID"),
+    client_secret=env.get("AUTH0_CLIENT_SECRET"),
+    client_kwargs={
+        "scope": "openid profile email",
+    },
+    server_metadata_url=f'https://{env.get("AUTH0_DOMAIN")}/.well-known/openid-configuration'
+)
 
 # --- GLOBAL STATE ---
 patient_mgr = PatientManager()
@@ -36,63 +62,64 @@ def camera_worker(cam_id, url):
     Dedicated thread for a single camera.
     Instantiates its own VisionTriage to avoid threading conflicts.
     """
-    print(f"[{cam_id}] Connecting to {url}...")
+    # print(f"[{cam_id}] Connecting to {url}...")
     
-    # 1. Instantiate Vision Model (Thread-Local)
-    vision_system = VisionTriage()
-    cap = cv2.VideoCapture(url)
+    # # 1. Instantiate Vision Model (Thread-Local)
+    # vision_system = VisionTriage()
+    # cap = cv2.VideoCapture(url)
     
-    # Reconnection / Loop logic
-    while True:
-        if not cap.isOpened():
-            cap.open(url)
-            time.sleep(2)
-            continue
+    # # Reconnection / Loop logic
+    # while True:
+    #     if not cap.isOpened():
+    #         cap.open(url)
+    #         time.sleep(2)
+    #         continue
 
-        success, frame = cap.read()
-        if not success:
-            # If stream drops, keep retrying
-            time.sleep(0.1)
-            continue
+    #     success, frame = cap.read()
+    #     if not success:
+    #         # If stream drops, keep retrying
+    #         time.sleep(0.1)
+    #         continue
 
-        # 2. Run Vision Analysis
-        try:
-            annotated_frame, alert = vision_system.analyze_frame(frame)
-        except Exception as e:
-            print(f"[{cam_id}] Vision Error: {e}")
-            annotated_frame = frame
-            alert = None
+    #     # 2. Run Vision Analysis
+    #     try:
+    #         annotated_frame, alert = vision_system.analyze_frame(frame)
+    #     except Exception as e:
+    #         print(f"[{cam_id}] Vision Error: {e}")
+    #         annotated_frame = frame
+    #         alert = None
 
-        # 3. Handle "Code Black" Logic
-        if alert:
-            active_patients = patient_mgr.get_active()
-            last_complaint = active_patients[-1]['complaint'] if active_patients else ""
+    #     # 3. Handle "Code Black" Logic
+    #     if alert:
+    #         active_patients = patient_mgr.get_active()
+    #         last_complaint = active_patients[-1]['complaint'] if active_patients else ""
             
-            # De-duplication: Ensure we don't spam the same alert
-            alert_msg = f"CODE BLACK (CAM {cam_id}): {alert}"
+    #         # De-duplication: Ensure we don't spam the same alert
+    #         alert_msg = f"CODE BLACK (CAM {cam_id}): {alert}"
             
-            if alert_msg not in last_complaint:
-                print(f"🚨 CAM {cam_id} DETECTED: {alert}")
+    #         if alert_msg not in last_complaint:
+    #             print(f"🚨 CAM {cam_id} DETECTED: {alert}")
                 
-                # Convert to base64 for snapshot
-                _, buffer = cv2.imencode('.jpg', annotated_frame)
-                b64_img = base64.b64encode(buffer).decode('utf-8')
+    #             # Convert to base64 for snapshot
+    #             _, buffer = cv2.imencode('.jpg', annotated_frame)
+    #             b64_img = base64.b64encode(buffer).decode('utf-8')
                 
-                patient_mgr.add_patient(
-                    name=f"Unknown (Cam {cam_id})",
-                    age="N/A",
-                    complaint=alert_msg,
-                    esi=0, 
-                    analysis=f"**VISUAL OVERRIDE:** Camera {cam_id} detected {alert}.",
-                    source_docs=[],
-                    snapshot=f"data:image/jpeg;base64,{b64_img}"
-                )
+    #             patient_mgr.add_patient(
+    #                 name=f"Unknown (Cam {cam_id})",
+    #                 age="N/A",
+    #                 complaint=alert_msg,
+    #                 esi=0, 
+    #                 analysis=f"**VISUAL OVERRIDE:** Camera {cam_id} detected {alert}.",
+    #                 source_docs=[],
+    #                 snapshot=f"data:image/jpeg;base64,{b64_img}"
+    #             )
 
-        # 4. Update Global State safely
-        with STREAMS[cam_id]['lock']:
-            STREAMS[cam_id]['frame'] = annotated_frame.copy()
+    #     # 4. Update Global State safely
+    #     with STREAMS[cam_id]['lock']:
+    #         STREAMS[cam_id]['frame'] = annotated_frame.copy()
             
-        time.sleep(0.03) # Cap ~30 FPS per thread
+    #     time.sleep(0.03) # Cap ~30 FPS per thread
+    return 
 
 # --- START THREADS ---
 # Spin up a thread for each camera source
@@ -158,6 +185,40 @@ def get_queue():
 def complete_patient(id):
     success = patient_mgr.mark_done(id)
     return jsonify({"success": success})
+
+# Auth0
+@app.route("/login")
+def login():
+    return oauth.auth0.authorize_redirect(
+        redirect_uri=url_for("callback", _external=True)
+    )
+
+@app.route("/callback", methods=["GET", "POST"])
+def callback():
+    token = oauth.auth0.authorize_access_token()
+    session["user"] = token
+    return redirect("/")
+
+@app.route("/session")
+def session_info():
+    return {
+        "logged_in": "user" in session
+    }
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(
+        "https://" + env.get("AUTH0_DOMAIN")
+        + "/v2/logout?"
+        + urlencode(
+            {
+                "returnTo": url_for("home", _external=True),
+                "client_id": env.get("AUTH0_CLIENT_ID"),
+            },
+            quote_via=quote_plus,
+        )
+    )
 
 if __name__ == '__main__':
     # Threaded=True is important for Flask to handle multiple requests (video streams) at once
