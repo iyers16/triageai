@@ -26,7 +26,7 @@ lock = threading.Lock()
 def camera_loop():
     """Background thread for continuous video analysis."""
     global output_frame, lock
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture("http://10.102.199.32:4747/video")
     
     while True:
         success, frame = cap.read()
