@@ -82,7 +82,7 @@ def extract_esi(text):
 # ==============================================================================
 # UI LAYOUT
 # ==============================================================================
-st.title("🏥 TriageAI: Hospital Intake System")
+st.title("🏥 CodeBludhbcjwhwbceeeee")
 
 # Create Tabs
 tab_kiosk, tab_nurse = st.tabs(["Patient Kiosk (Public)", "Nurse Dashboard (Private)"])
